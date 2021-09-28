@@ -1,6 +1,7 @@
 import Fluent
 import FluentPostgresDriver
 import Vapor
+import Redis
 
 // configures your application
 public func configure(_ app: Application) throws {
@@ -15,7 +16,17 @@ public func configure(_ app: Application) throws {
         database: Environment.get("DATABASE_NAME") ?? "vapor_database"
     ), as: .psql)
 
-    app.migrations.add(CreateTodo())
+    // database migrations
+    app.migrations.add(CreatePlanet())
+    
+    // define logger lever
+    app.logger.logLevel = .debug
+    
+    // activate the migrations
+    try app.autoMigrate().wait()
+    
+    // redis
+    app.redis.configuration = try RedisConfiguration(hostname: "localhost")
 
     // register routes
     try routes(app)
