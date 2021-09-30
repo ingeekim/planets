@@ -11,6 +11,7 @@ struct PlanetController: RouteCollection {
             planet.delete(use: deleteHandler)
         }
         planetRoutes.get(":planetID", use: findHandler)
+        planetRoutes.get("multi", use: multiHandler)
     }
 
     func indexHandler(req: Request) throws -> EventLoopFuture<[Planet]> {
@@ -27,6 +28,21 @@ struct PlanetController: RouteCollection {
             .unwrap(or: Abort(.notFound))
             .flatMap { $0.delete(on: req.db) }
             .transform(to: .ok)
+    }
+    
+    func multiHandler(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        return req.redis.withBorrowedClient { client -> EventLoopFuture<HTTPStatus> in
+            return client.send(command: "MULTI").flatMap { _ -> EventLoopFuture<RESPValue> in
+                for _ in 0 ..< 10 {
+                    let _ = client.send(command: "PING")
+                }
+                let response = client.send(command: "EXEC")
+                let _ = response.map { value in
+                    print(value)
+                }
+                return response
+            }.transform(to: .ok)
+        }
     }
     
     func findHandler(req: Request) throws -> EventLoopFuture<Planet> {
@@ -47,7 +63,7 @@ struct PlanetController: RouteCollection {
             req.logger.info("cache hit.")
             return planet
         }
-        
+
         return cachedPlanet.flatMap { (cached: Planet) -> (EventLoopFuture<Planet>) in
             if cached.name != "Failure" {
                 return cachedPlanet
